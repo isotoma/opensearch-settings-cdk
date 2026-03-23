@@ -59,6 +59,11 @@ const handleCreate = async (event: CreateEvent): Promise<Response> => {
         console.log('result', JSON.stringify(result, null, 2));
     } catch (err) {
         console.error(err);
+        // Propagate the error so CloudFormation treats this as a failure.
+        if (err instanceof Error) {
+            throw err;
+        }
+        throw new Error(String(err));
     }
 
     return Promise.resolve({
