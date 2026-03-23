@@ -1,6 +1,6 @@
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
-import * as opensearch from 'aws-cdk-lib/aws-opensearch';
+import * as opensearch from 'aws-cdk-lib/aws-opensearchservice';
 import * as cdk from 'aws-cdk-lib';
 import * as customResource from 'aws-cdk-lib/custom-resources';
 import { Construct } from 'constructs';
