@@ -62,14 +62,15 @@ const handleCreate = async (event: CreateEvent): Promise<Response> => {
         // Propagate the error so CloudFormation treats this as a failure.
         if (err instanceof Error) {
             throw err;
-        }
-        throw new Error(String(err));
-    }
 
-    return Promise.resolve({
-        PhysicalResourceId: `settings_${opensearchDomainEndpoint}`,
-        Data: {},
-    });
+        return {
+            PhysicalResourceId: `settings_${opensearchDomainEndpoint}`,
+            Data: {},
+        };
+    } catch (err) {
+        console.error(err);
+        throw err;
+    }
 };
 
 const handleUpdate = async (event: UpdateEvent): Promise<Response> => {
