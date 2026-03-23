@@ -14,7 +14,7 @@
     },
     "keywords": [
         "cdk",
-        "opnsearch"
+        "opensearch"
     ],
     "scripts": {
         "test": "jest",
