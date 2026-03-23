@@ -15,7 +15,7 @@
         "lint-check": "eslint 'index.ts' 'tests/**/*.ts' --max-warnings 0"
     },
     "dependencies": {
-        "elasticsearch": "^15.0.0",
+        "@opensearch-project/opensearch": "^2.10.0",
         "http-aws-es": "^6.0.0"
     },
     "devDependencies": {
