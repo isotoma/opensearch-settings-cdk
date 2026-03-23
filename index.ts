@@ -27,15 +27,6 @@ class OpenSearchSettingsProvider extends Construct {
     public readonly lambdaFunction: lambda.Function;
     public readonly securityGroup?: ec2.ISecurityGroup;
 
-    public static getOrCreate(scope: Construct, props?: OpenSearchSettingsProviderProps): OpenSearchSettingsProvider {
-        const stack = cdk.Stack.of(scope);
-        // Create a unique ID based on VPC configuration to allow multiple providers with different VPC settings
-        const vpcId = props?.vpc ? `-${props.vpc.node.addr}` : '';
-        const id = `com.isotoma.cdk.custom-resources.opensearch-settings${vpcId}`;
-        const existing = (stack.node.tryFindChild(id) as OpenSearchSettingsProvider) || new OpenSearchSettingsProvider(stack, id, props);
-        return existing;
-    }
-
     constructor(scope: Construct, id: string, props?: OpenSearchSettingsProviderProps) {
         super(scope, id);
 
@@ -87,7 +78,7 @@ export class OpenSearchSettings extends Construct {
 
         try {
             // Attempt to access connections - will throw if domain is not in VPC
-            const connections = props.domain.connections;
+            props.domain.connections;
             domainIsInVpc = true;
 
             // If domain is in VPC but user didn't provide vpc parameter, require it
@@ -101,7 +92,8 @@ export class OpenSearchSettings extends Construct {
             }
         }
 
-        const settingsProvider = OpenSearchSettingsProvider.getOrCreate(this, {
+        // Create a new provider for this construct instance
+        const settingsProvider = new OpenSearchSettingsProvider(this, 'Provider', {
             vpc: vpc,
             vpcSubnets: vpcSubnets,
         });
