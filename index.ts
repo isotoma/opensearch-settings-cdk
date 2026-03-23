@@ -11,7 +11,7 @@ import * as path from 'path';
 export type OpenSearchClusterSettings = Record<string, any>;
 
 export interface OpenSearchSettingsProps {
-    readonly domain: opensearch.IDomain;
+    readonly domain: opensearch.Domain;
     readonly clusterSettings: OpenSearchClusterSettings;
     readonly vpc?: ec2.IVpc;
     readonly vpcSubnets?: ec2.SubnetSelection;
@@ -80,9 +80,30 @@ export class OpenSearchSettings extends Construct {
     constructor(scope: Construct, id: string, props: OpenSearchSettingsProps) {
         super(scope, id);
 
+        // Determine if domain is in VPC by checking if connections are available
+        const vpc = props.vpc;
+        const vpcSubnets = props.vpcSubnets;
+        let domainIsInVpc = false;
+
+        try {
+            // Attempt to access connections - will throw if domain is not in VPC
+            const connections = props.domain.connections;
+            domainIsInVpc = true;
+
+            // If domain is in VPC but user didn't provide vpc parameter, require it
+            if (!vpc) {
+                throw new Error('Domain is deployed in a VPC. You must provide the vpc parameter (and optionally vpcSubnets) ' + 'to deploy the Lambda function in the same VPC.');
+            }
+        } catch (e) {
+            // Domain is not in VPC - this is fine for public domains
+            if ((e as Error).message?.includes('must provide the vpc parameter')) {
+                throw e;
+            }
+        }
+
         const settingsProvider = OpenSearchSettingsProvider.getOrCreate(this, {
-            vpc: props.vpc,
-            vpcSubnets: props.vpcSubnets,
+            vpc: vpc,
+            vpcSubnets: vpcSubnets,
         });
 
         settingsProvider.lambdaFunction.addToRolePolicy(
@@ -91,6 +112,12 @@ export class OpenSearchSettings extends Construct {
                 actions: ['es:ESHttp*'],
             }),
         );
+
+        // If domain is in VPC, automatically configure security group connectivity
+        if (domainIsInVpc && settingsProvider.securityGroup) {
+            // Allow Lambda's security group to connect to the domain
+            props.domain.connections.allowFrom(settingsProvider.securityGroup, ec2.Port.tcp(443), 'Allow Lambda function to access OpenSearch domain');
+        }
 
         new cdk.CustomResource(this, 'Resource', {
             serviceToken: settingsProvider.provider.serviceToken,
