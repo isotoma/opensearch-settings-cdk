@@ -71,24 +71,26 @@ export class OpenSearchSettings extends Construct {
     constructor(scope: Construct, id: string, props: OpenSearchSettingsProps) {
         super(scope, id);
 
-        // Determine if domain is in VPC by checking if connections are available
-        const vpc = props.vpc;
+        // Determine if domain is in a VPC using its security groups and, if so,
+        // default the VPC to the one associated with the domain when not provided.
+        let vpc = props.vpc;
         const vpcSubnets = props.vpcSubnets;
         let domainIsInVpc = false;
 
-        try {
-            // Attempt to access connections - will throw if domain is not in VPC
-            props.domain.connections;
+        const domainConnections = props.domain.connections;
+        const securityGroups = (domainConnections && (domainConnections as any).securityGroups) || [];
+
+        if (Array.isArray(securityGroups) && securityGroups.length > 0) {
             domainIsInVpc = true;
 
-            // If domain is in VPC but user didn't provide vpc parameter, require it
+            // If domain is in a VPC but user didn't provide vpc explicitly, try to
+            // derive it from the domain's security group's VPC to avoid requiring
+            // callers to pass the VPC twice.
             if (!vpc) {
-                throw new Error('Domain is deployed in a VPC. You must provide the vpc parameter (and optionally vpcSubnets) ' + 'to deploy the Lambda function in the same VPC.');
-            }
-        } catch (e) {
-            // Domain is not in VPC - this is fine for public domains
-            if ((e as Error).message?.includes('must provide the vpc parameter')) {
-                throw e;
+                const derivedVpc = securityGroups[0] && (securityGroups[0] as any).vpc;
+                if (derivedVpc) {
+                    vpc = derivedVpc;
+                }
             }
         }
 
