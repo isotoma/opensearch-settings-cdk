@@ -15,18 +15,17 @@ export interface OpenSearchSettingsProps {
     readonly clusterSettings: OpenSearchClusterSettings;
     readonly vpc?: ec2.IVpc;
     readonly vpcSubnets?: ec2.SubnetSelection;
-    readonly securityGroups?: ec2.ISecurityGroup[];
 }
 
 interface OpenSearchSettingsProviderProps {
     readonly vpc?: ec2.IVpc;
     readonly vpcSubnets?: ec2.SubnetSelection;
-    readonly securityGroups?: ec2.ISecurityGroup[];
 }
 
 class OpenSearchSettingsProvider extends Construct {
     public readonly provider: customResource.Provider;
     public readonly lambdaFunction: lambda.Function;
+    public readonly securityGroup?: ec2.ISecurityGroup;
 
     public static getOrCreate(scope: Construct, props?: OpenSearchSettingsProviderProps): OpenSearchSettingsProvider {
         const stack = cdk.Stack.of(scope);
@@ -49,10 +48,23 @@ class OpenSearchSettingsProvider extends Construct {
 
         // Add VPC configuration if provided
         if (props?.vpc) {
+            // Create a security group for the Lambda function
+            this.securityGroup = new ec2.SecurityGroup(this, 'LambdaSecurityGroup', {
+                vpc: props.vpc,
+                description: 'Security group for OpenSearch Settings Lambda function',
+                allowAllOutbound: false,
+            });
+
+            // Add egress rule to allow Lambda to connect to OpenSearch on port 443 (HTTPS)
+            this.securityGroup.addEgressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(443), 'Allow HTTPS access to OpenSearch domain');
+
+            // Default to PRIVATE_WITH_EGRESS subnets if not specified
+            const vpcSubnets = props.vpcSubnets || { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS };
+
             Object.assign(lambdaProps, {
                 vpc: props.vpc,
-                vpcSubnets: props.vpcSubnets,
-                securityGroups: props.securityGroups,
+                vpcSubnets: vpcSubnets,
+                securityGroups: [this.securityGroup],
             });
         }
 
@@ -71,7 +83,6 @@ export class OpenSearchSettings extends Construct {
         const settingsProvider = OpenSearchSettingsProvider.getOrCreate(this, {
             vpc: props.vpc,
             vpcSubnets: props.vpcSubnets,
-            securityGroups: props.securityGroups,
         });
 
         settingsProvider.lambdaFunction.addToRolePolicy(
