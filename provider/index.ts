@@ -1,10 +1,15 @@
-import { Client } from 'elasticsearch';
-import * as HttpAwsEs from 'http-aws-es';
+import { Client } from '@opensearch-project/opensearch';
+import { AwsSigv4Signer } from '@opensearch-project/opensearch/aws';
+import { defaultProvider } from '@aws-sdk/credential-provider-node';
 
 const getClient = (domainEndpoint: string): Client => {
     return new Client({
-        hosts: [`https://${domainEndpoint}`],
-        connectionClass: HttpAwsEs,
+        ...AwsSigv4Signer({
+            region: process.env.AWS_REGION || 'us-east-1',
+            service: 'es',
+            getCredentials: defaultProvider(),
+        }),
+        node: `https://${domainEndpoint}`,
     });
 };
 
@@ -39,17 +44,17 @@ interface Response {
 type Event = CreateEvent | UpdateEvent | DeleteEvent;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-type ElasticsearchClusterSettings = Record<string, any>;
+type OpenSearchClusterSettings = Record<string, any>;
 
 const handleCreate = async (event: CreateEvent): Promise<Response> => {
     const opensearchDomainEndpoint = event.ResourceProperties.OpensearchDomainEndpoint;
-    const clusterSettings = JSON.parse(event.ResourceProperties.ClusterSettingsJson) as ElasticsearchClusterSettings;
+    const clusterSettings = JSON.parse(event.ResourceProperties.ClusterSettingsJson) as OpenSearchClusterSettings;
 
+    console.log('opensearchdomainendpoint', opensearchDomainEndpoint);
+    console.log('clusterSettings', JSON.stringify(clusterSettings, null, 2));
+
+    const client = getClient(opensearchDomainEndpoint);
     try {
-        console.log('opensearchdomainendpoint', opensearchDomainEndpoint);
-        console.log('clusterSettings', JSON.stringify(clusterSettings, null, 2));
-
-        const client = getClient(opensearchDomainEndpoint);
         const result = await client.cluster.putSettings({
             body: {
                 persistent: clusterSettings,
@@ -58,19 +63,14 @@ const handleCreate = async (event: CreateEvent): Promise<Response> => {
 
         console.log('result', JSON.stringify(result, null, 2));
     } catch (err) {
-        console.error(err);
-        // Propagate the error so CloudFormation treats this as a failure.
-        if (err instanceof Error) {
-            throw err;
-
-        return {
-            PhysicalResourceId: `settings_${opensearchDomainEndpoint}`,
-            Data: {},
-        };
-    } catch (err) {
-        console.error(err);
+        console.error('Failed to apply cluster settings:', err);
         throw err;
     }
+
+    return {
+        PhysicalResourceId: `settings_${opensearchDomainEndpoint}`,
+        Data: {},
+    };
 };
 
 const handleUpdate = async (event: UpdateEvent): Promise<Response> => {
