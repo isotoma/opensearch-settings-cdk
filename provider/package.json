@@ -15,12 +15,11 @@
         "lint-check": "eslint 'index.ts' 'tests/**/*.ts' --max-warnings 0"
     },
     "dependencies": {
-        "@opensearch-project/opensearch": "^2.10.0",
-        "http-aws-es": "^6.0.0"
+        "@aws-sdk/credential-provider-node": "^3.0.0",
+        "@opensearch-project/opensearch": "^2.10.0"
     },
     "devDependencies": {
         "@types/node": "^20.0.0",
-        "@types/http-aws-es": "^6.0.0",
         "@types/jest": "^29.5.0",
         "@typescript-eslint/eslint-plugin": "2.16.0",
         "@typescript-eslint/parser": "2.16.0",

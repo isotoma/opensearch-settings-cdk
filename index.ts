@@ -7,52 +7,56 @@ import { Construct } from 'constructs';
 import * as path from 'path';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type ElasticsearchClusterSettings = Record<string, any>;
+export type OpenSearchClusterSettings = Record<string, any>;
 
-export interface ElasticsearchSettingsProps {
+export interface OpenSearchSettingsProps {
     readonly domain: opensearch.IDomain;
-    readonly clusterSettings: ElasticsearchClusterSettings;
+    readonly clusterSettings: OpenSearchClusterSettings;
 }
 
-class ElasticsearchSettingsProvider extends Construct {
+class OpenSearchSettingsProvider extends Construct {
     public readonly provider: customResource.Provider;
+    public readonly lambdaFunction: lambda.Function;
 
-    public static getOrCreate(scope: Construct): customResource.Provider {
+    public static getOrCreate(scope: Construct): OpenSearchSettingsProvider {
         const stack = cdk.Stack.of(scope);
-        const id = 'com.isotoma.cdk.custom-resources.es-settings';
-        const x = (stack.node.tryFindChild(id) as ElasticsearchSettingsProvider) || new ElasticsearchSettingsProvider(stack, id);
-        return x.provider;
+        const id = 'com.isotoma.cdk.custom-resources.opensearch-settings';
+        const existing = (stack.node.tryFindChild(id) as OpenSearchSettingsProvider) || new OpenSearchSettingsProvider(stack, id);
+        return existing;
     }
 
     constructor(scope: Construct, id: string) {
         super(scope, id);
 
-        this.provider = new customResource.Provider(this, 'es-settings-provider', {
-            onEventHandler: new lambda.Function(this, 'es-settings-event', {
-                code: lambda.Code.fromAsset(path.join(__dirname, 'provider')),
-                runtime: lambda.Runtime.NODEJS_20_X,
-                handler: 'index.onEvent',
-                timeout: cdk.Duration.minutes(5),
-                initialPolicy: [
-                    new iam.PolicyStatement({
-                        resources: ['*'],
-                        actions: ['es:ESHttp*'],
-                    }),
-                ],
-            }),
+        this.lambdaFunction = new lambda.Function(this, 'opensearch-settings-event', {
+            code: lambda.Code.fromAsset(path.join(__dirname, 'provider')),
+            runtime: lambda.Runtime.NODEJS_20_X,
+            handler: 'index.onEvent',
+            timeout: cdk.Duration.minutes(5),
+        });
+
+        this.provider = new customResource.Provider(this, 'opensearch-settings-provider', {
+            onEventHandler: this.lambdaFunction,
         });
     }
 }
 
-export class ElasticsearchSettings extends Construct {
-    constructor(scope: Construct, id: string, props: ElasticsearchSettingsProps) {
+export class OpenSearchSettings extends Construct {
+    constructor(scope: Construct, id: string, props: OpenSearchSettingsProps) {
         super(scope, id);
 
-        const provider = ElasticsearchSettingsProvider.getOrCreate(this);
+        const settingsProvider = OpenSearchSettingsProvider.getOrCreate(this);
+
+        settingsProvider.lambdaFunction.addToRolePolicy(
+            new iam.PolicyStatement({
+                resources: [props.domain.domainArn, `${props.domain.domainArn}/*`],
+                actions: ['es:ESHttp*'],
+            }),
+        );
 
         new cdk.CustomResource(this, 'Resource', {
-            serviceToken: provider.serviceToken,
-            resourceType: 'Custom::ElasticsearchSettings',
+            serviceToken: settingsProvider.provider.serviceToken,
+            resourceType: 'Custom::OpenSearchSettings',
             properties: {
                 OpensearchDomainEndpoint: props.domain.domainEndpoint,
                 ClusterSettingsJson: JSON.stringify(props.clusterSettings),
