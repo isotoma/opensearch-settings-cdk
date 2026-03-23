@@ -1,11 +1,13 @@
 import { Client } from '@opensearch-project/opensearch';
 import { AwsSigv4Signer } from '@opensearch-project/opensearch/aws';
+import { defaultProvider } from '@aws-sdk/credential-provider-node';
 
 const getClient = (domainEndpoint: string): Client => {
     return new Client({
         ...AwsSigv4Signer({
             region: process.env.AWS_REGION || 'us-east-1',
             service: 'es',
+            getCredentials: defaultProvider(),
         }),
         node: `https://${domainEndpoint}`,
     });
